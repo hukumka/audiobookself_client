@@ -6,7 +6,7 @@ edition = "2021"
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 
 [dependencies]
-reqwest = "0.12.4"
+reqwest = {version = "0.12.4", default-features=false, features = ["rustls-tls-native-roots", "http2", "charset"]}
 tokio = {version = "1.37", features = ["rt", "macros"]}
 chrono = { version = "0.4", features = ["serde"] }
 dotenv = "0.15"
