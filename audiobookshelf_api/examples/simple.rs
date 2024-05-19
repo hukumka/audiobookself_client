@@ -1,5 +1,5 @@
+use audiobookshelf_api::params::{LibraryItemFilter, LibraryItemParams};
 use audiobookshelf_api::{ClientConfig, UserClient};
-use dotenv;
 use reqwest::Url;
 use std::env::var;
 use std::error::Error;
@@ -16,13 +16,27 @@ async fn main() -> Result<(), Box<dyn Error>> {
 
     println!("{username:?} {password:?}");
     let client = UserClient::auth(config, username, password).await?;
-    let libraries = client.libraries().await?;
-    println!("{:#?}", libraries);
+    let library = client.libraries().await?.pop().unwrap();
+    println!("{:#?}", library);
 
-    for library in &libraries {
-        let library = client.library(&library.id).await?;
-        println!("{:#?}", library);
-    }
+    let filters = client.library(&library.id).await?.filterdata;
+    let items = client
+        .library_items(
+            &library.id,
+            LibraryItemParams {
+                filter: LibraryItemFilter {
+                    series: vec![filters.series[0].id.clone()],
+                    ..Default::default()
+                },
+                ..Default::default()
+            },
+        )
+        .await?;
+
+    println!("{:#?}", items);
+
+    let item = client.library_item(&items[0].id).await?;
+    println!("{:#?}", item);
 
     Ok(())
 }

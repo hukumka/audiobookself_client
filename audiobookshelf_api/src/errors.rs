@@ -26,7 +26,7 @@ pub enum APIError {
     #[error("Connection failed")]
     UnknownError(Box<dyn std::error::Error>),
     #[error("Invalid Response")]
-    InvalidResponseSchema(serde_json::Error),
+    InvalidResponseSchema(serde_path_to_error::Error<serde_json::Error>),
     #[error("Invalid Request")]
     InvalidRequestSchema(serde_json::Error),
 }
