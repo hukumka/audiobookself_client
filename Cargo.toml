@@ -1,5 +1,6 @@
 [workspace]
 members = [
   "audiobookshelf_api",
+  "audiobookshelf_client",
 ]
 resolver = "2"
