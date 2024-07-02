@@ -1,5 +1,6 @@
 use chrono::{DateTime, Utc};
 use serde::{Deserialize, Deserializer, Serialize};
+use serde_repr::Deserialize_repr;
 
 fn deserialize_timestamp<'d, D: Deserializer<'d>>(
     deserializer: D,
@@ -40,7 +41,7 @@ pub struct AuthResponse {
 #[derive(Deserialize, Debug, Clone, PartialEq)]
 #[serde(rename_all = "camelCase")]
 pub struct UserData {
-    pub id: String,
+    pub id: Id<UserData>,
     pub username: String,
     #[serde(rename = "type")]
     pub type_: String,
@@ -459,6 +460,97 @@ pub enum Progress {
     InProgress,
 }
 
+#[derive(Deserialize, Debug, Clone, PartialEq)]
+#[serde(rename_all = "camelCase")]
+pub struct PlaybackSession {
+    pub id: Id<PlaybackSession>,
+    pub user_id: Id<UserData>,
+    pub library_id: Id<Library>,
+    pub library_item_id: Id<LibraryItem>,
+    pub episode_id: Option<Id<Episode>>,
+    #[serde(flatten)]
+    pub playback_media: PlaybackMedia,
+    pub display_title: String,
+    pub display_author: String,
+    pub cover_path: String,
+    pub duration: f64,
+    pub play_method: PlayMethod,
+    pub media_player: String,
+    pub device_info: DeviceInfo,
+    pub server_version: String,
+    pub date: String,
+    pub day_of_week: String,
+    pub time_listening: f64,
+    pub start_time: f64,
+    pub current_time: f64,
+    #[serde(deserialize_with = "deserialize_timestamp")]
+    pub started_at: DateTime<Utc>,
+    #[serde(deserialize_with = "deserialize_timestamp")]
+    pub updated_at: DateTime<Utc>,
+}
+
+#[derive(Deserialize, Debug, Clone, PartialEq)]
+#[serde(rename_all = "camelCase")]
+pub struct PlaybackSessionExtended {
+    #[serde(flatten)]
+    pub playback_session: PlaybackSession,
+    pub audio_tracks: Vec<AudioTrack>,
+}
+
+#[derive(Deserialize, Debug, Clone, PartialEq)]
+#[serde(rename_all = "camelCase")]
+pub struct AudioTrack {
+    pub index: usize,
+    pub start_offset: f64,
+    pub duration: f64,
+    pub title: String,
+    pub content_url: String,
+    pub mime_type: String,
+    pub metadata: Option<FileMetadata>,
+}
+
+#[derive(Deserialize, Debug, Clone, PartialEq)]
+#[serde(tag = "mediaType")]
+#[serde(rename_all = "camelCase")]
+pub enum PlaybackMedia {
+    #[serde(rename_all = "camelCase")]
+    Book {
+        media_metadata: BookMetadata,
+        chapters: Vec<Chapter>,
+    },
+    #[serde(rename_all = "camelCase")]
+    Podcast { media_metadata: PodcastMetadata },
+}
+
+#[derive(Deserialize_repr, Debug, Clone, PartialEq)]
+#[repr(u8)]
+pub enum PlayMethod {
+    DirectPlay = 0,
+    DirectStream = 1,
+    Transcode = 2,
+    Local = 3,
+}
+
+#[derive(Deserialize, Debug, Clone, PartialEq)]
+#[serde(rename_all = "camelCase")]
+pub struct DeviceInfo {
+    pub id: Id<DeviceInfo>,
+    pub user_id: Id<UserData>,
+    pub device_id: String,
+    pub id_address: Option<String>,
+    pub browser_name: Option<String>,
+    pub browser_version: Option<String>,
+    pub os_name: Option<String>,
+    pub os_version: Option<String>,
+    pub device_name: Option<String>,
+    pub device_type: Option<String>,
+    pub manufacturer: Option<String>,
+    pub model: Option<String>,
+    pub sdk_version: Option<String>,
+    pub client_name: Option<String>,
+    pub client_version: Option<String>,
+}
+
 impl Progress {
     pub fn as_str(&self) -> &'static str {
         match self {
@@ -467,5 +559,15 @@ impl Progress {
             Self::NotFinished => "not-finished",
             Self::InProgress => "in-progress",
         }
+    }
+}
+
+impl UserData {
+    pub fn currently_listening(&self) -> Option<Id<LibraryItem>> {
+        self.media_progress
+            .iter()
+            .filter(|progress| !progress.is_finished && !progress.hide_from_continue_listening)
+            .max_by_key(|progress| progress.last_update)
+            .map(|progress| progress.library_item_id.clone())
     }
 }

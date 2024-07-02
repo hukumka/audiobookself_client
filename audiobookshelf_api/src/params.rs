@@ -1,6 +1,7 @@
 use crate::schema::{Author, Id, Progress, Series};
 use base64::engine::general_purpose::STANDARD;
 use base64::Engine;
+use serde::Serialize;
 
 #[derive(Default, Debug, Clone)]
 pub struct LibraryItemParams {
@@ -56,4 +57,25 @@ impl LibraryItemParams {
             format!("{filter}.{b64value}", b64value = STANDARD.encode(value)),
         ));
     }
+}
+
+#[derive(Serialize, Debug, Clone, Default)]
+#[serde(rename_all = "camelCase")]
+pub struct PlayLibraryItemParams {
+    pub device_info: DeviceInfoParams,
+    pub force_direct_play: bool,
+    pub force_transcode: bool,
+    pub supported_mime_types: Vec<String>,
+    pub media_player: Option<String>,
+}
+
+#[derive(Serialize, Debug, Clone, Default)]
+#[serde(rename_all = "camelCase")]
+pub struct DeviceInfoParams {
+    pub device_id: Option<String>,
+    pub client_name: Option<String>,
+    pub client_version: Option<String>,
+    pub manufacturer: Option<String>,
+    pub model: Option<String>,
+    pub sdk_version: Option<u64>,
 }

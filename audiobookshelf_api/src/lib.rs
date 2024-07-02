@@ -3,11 +3,11 @@ pub mod params;
 pub mod schema;
 
 use errors::{APIError, AuthError, FusedError, ResponseError};
-use params::LibraryItemParams;
+use params::{LibraryItemParams, PlayLibraryItemParams};
 use reqwest::{self, StatusCode, Url};
 use schema::{
     AuthRequest, AuthResponse, Id, Libraries, Library, LibraryItem, LibraryItemMinified,
-    LibraryWithFilters, PaginatedResponse,
+    LibraryWithFilters, PaginatedResponse, PlaybackSessionExtended, UserData,
 };
 
 pub struct ClientConfig {
@@ -23,6 +23,10 @@ pub struct UserClient {
 impl ClientConfig {
     fn login_url(&self) -> Url {
         self.root_url.join("login").unwrap()
+    }
+
+    fn me_url(&self) -> Url {
+        self.root_url.join("api/me").unwrap()
     }
 
     fn libraries_url(&self) -> Url {
@@ -43,6 +47,10 @@ impl ClientConfig {
 
     fn library_item_url(&self, id: &str) -> Url {
         Url::parse(&format!("{root}/api/items/{id}", root = self.root_url)).unwrap()
+    }
+
+    fn library_item_play_url(&self, id: &str) -> Url {
+        Url::parse(&format!("{root}/api/items/{id}/play", root = self.root_url)).unwrap()
     }
 }
 
@@ -84,6 +92,20 @@ impl UserClient {
             config,
             token: response.user.token,
         })
+    }
+
+    pub async fn me(&self) -> Result<UserData, APIError> {
+        let request_builder = self
+            .client
+            .get(self.config.me_url())
+            .bearer_auth(self.token.clone())
+            .header("Content-Type", "application/json");
+
+        let response = Self::send(request_builder)
+            .await
+            .map_err(FusedError::to_api_error)?;
+
+        Ok(response)
     }
 
     pub async fn libraries(&self) -> Result<Vec<Library>, APIError> {
@@ -140,6 +162,28 @@ impl UserClient {
             .header("Content-Type", "application/json");
 
         Self::send::<LibraryItem>(request_builder)
+            .await
+            .map_err(FusedError::to_api_error)
+    }
+
+    /// Receive data neccesary to play media item.
+    ///
+    /// Note: despite name `play` suggesting that it is statefull, it does not update user media progress. That sould be done manually by using `library_item/`
+    pub async fn library_item_play(
+        &self,
+        id: &Id<LibraryItem>,
+        params: &PlayLibraryItemParams,
+    ) -> Result<PlaybackSessionExtended, APIError> {
+        let body = serde_json::to_string(params).unwrap();
+        let request_builder = self
+            .client
+            .post(self.config.library_item_play_url(id.as_str()))
+            .query(&[("include", "authors")])
+            .bearer_auth(self.token.clone())
+            .body(body)
+            .header("Content-Type", "application/json");
+
+        Self::send::<PlaybackSessionExtended>(request_builder)
             .await
             .map_err(FusedError::to_api_error)
     }
