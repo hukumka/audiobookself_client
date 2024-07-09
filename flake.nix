@@ -17,7 +17,7 @@
     self, nixpkgs, flake-utils, rust-overlay
   }: flake-utils.lib.eachDefaultSystem (system: 
     let
-      rustVersion = "1.74.1";
+      rustVersion = "1.79.0";
       overlays = [ (import rust-overlay) ];
       pkgs = import nixpkgs {
         inherit system overlays;
@@ -31,6 +31,7 @@
         buildInputs = [
           rustToolchain
           pkgs.pkg-config
+          alsa-lib
         ];
       };
       

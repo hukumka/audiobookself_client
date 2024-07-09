@@ -2,13 +2,25 @@ pub mod errors;
 pub mod params;
 pub mod schema;
 
+use std::sync::OnceLock;
+use std::time::Duration;
+
 use errors::{APIError, AuthError, FusedError, ResponseError};
 use params::{LibraryItemParams, PlayLibraryItemParams};
-use reqwest::{self, StatusCode, Url};
+use reqwest::header::{HeaderMap, HeaderValue};
+pub use reqwest::{self, StatusCode, Url};
 use schema::{
     AuthRequest, AuthResponse, Id, Libraries, Library, LibraryItem, LibraryItemMinified,
     LibraryWithFilters, PaginatedResponse, PlaybackSessionExtended, UserData,
 };
+pub use stream_download;
+use stream_download::{
+    http::HttpStream,
+    storage::{temp::TempStorageProvider, StorageProvider},
+    Settings, StreamDownload,
+};
+
+static CLIENT: OnceLock<reqwest::Client> = OnceLock::new();
 
 pub struct ClientConfig {
     pub root_url: Url,
@@ -57,10 +69,18 @@ impl ClientConfig {
 impl UserClient {
     pub fn from_token(config: ClientConfig, token: String) -> Self {
         Self {
-            client: reqwest::Client::new(),
+            client: CLIENT.get_or_init(reqwest::Client::new).clone(),
             config,
             token,
         }
+    }
+
+    pub fn client(&self) -> reqwest::Client {
+        self.client.clone()
+    }
+
+    pub fn build_abs_url(&self, url: &str) -> Url {
+        self.config.root_url.join(url).unwrap()
     }
 
     pub async fn auth(
@@ -214,5 +234,30 @@ impl UserClient {
                 response: response.text().await.map_err(APIError::NetworkError)?,
             }))
         }
+    }
+
+    pub async fn audiofile_stream(
+        &self,
+        url: &str,
+    ) -> Result<StreamDownload<TempStorageProvider>, APIError> {
+        let mut headers = HeaderMap::new();
+        let header: HeaderValue = format!("Bearer {}", self.token).parse().unwrap();
+        headers.insert("Authorization", header);
+        let client = reqwest::Client::builder()
+            .connect_timeout(Duration::from_secs(5))
+            .default_headers(headers)
+            .build()
+            .unwrap();
+
+        let stream = HttpStream::new(client, self.build_abs_url(url))
+            .await
+            .map_err(|e| APIError::UnknownError(e.into()))?;
+
+        let download =
+            StreamDownload::from_stream(stream, TempStorageProvider::new(), Settings::default())
+                .await
+                .map_err(|e| APIError::UnknownError(e.into()))?;
+
+        Ok(download)
     }
 }

@@ -14,7 +14,6 @@ async fn main() -> Result<(), Box<dyn Error>> {
     let username = var("AUDIOBOOKSHELF_USERNAME")?;
     let password = var("AUDIOBOOKSHELF_PASSWORD")?;
 
-    println!("{username:?} {password:?}");
     let client = UserClient::auth(config, username, password).await?;
     let library = client.libraries().await?.pop().unwrap();
     println!("{:#?}", library);
